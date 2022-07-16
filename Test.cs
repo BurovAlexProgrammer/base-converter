@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,16 +10,7 @@ public class Test
 {
     public void Run()
     {
-        var a = new Parent();
-
-        a.name = "Parent";
-        a.enabled = true;
-
-        var b = Convert(a);
-        var b2 = SimpleConvert(a);
-
-        Console.WriteLine(JsonConvert.SerializeObject(b));
-        Console.WriteLine(JsonConvert.SerializeObject(b2));
+        Console.WriteLine("Base class: " + JsonConvert.SerializeObject(new Parent()));
 
         var timer = DateTime.Now.Ticks;
 
@@ -29,14 +21,17 @@ public class Test
 
         var parents = new Parent[iterateCount];
         var children = new Child[iterateCount];
+        var indChildren = new IndependentClass[iterateCount];
 
         for (int i = 0; i < iterateCount; i++)
         {
             parents[i] = new Parent();
             parents[i].name = "name" + new Random().Next();
             parents[i].enabled = true;
+            parents[i].publicSubClass1 = new SubClass1();
 
             children[i] = new Child();
+            indChildren[i] = new IndependentClass();
         }
 
         Console.WriteLine("Initialize time: " + ElapsedTime(ref timer));
@@ -49,13 +44,21 @@ public class Test
 
         Console.WriteLine("Simple convert time: " + ElapsedTime(ref timer));
 
-        //-----------Check simple convert-----------
+        //-----------Check right convert-----------
         for (int i = 0; i < iterateCount; i++)
         {
             children[i] = Convert(parents[i]);
         }
 
         Console.WriteLine("Right convert time: " + ElapsedTime(ref timer));
+        
+        //-----------Check right convert for independent class-----------
+        for (int i = 0; i < iterateCount; i++)
+        {
+            indChildren[i] = Convert2(parents[i]);
+        }
+
+        Console.WriteLine("Right independent convert time: " + ElapsedTime(ref timer));
 
         Console.ReadKey();
     }
@@ -72,17 +75,31 @@ public class Test
     {
         var child = new Child();
         var childType = child.GetType();
-        var parentType = p.GetType();
-        var parentFields = parentType.GetFields();
-        var childFields = childType.GetFields();
 
-        foreach (var baseField in parentFields)
+        var parentTypeInfo = typeof(Parent).GetTypeInfo();
+        var parentFields = parentTypeInfo.DeclaredFields;
+
+        foreach (var field in parentFields)
         {
-            // childFields[0].SetValue(child, baseField.GetValue(p));
+            field.SetValue(child, field.GetValue(p));
         }
 
-        childFields[1].SetValue(child, parentFields[0].GetValue(p));
-        childFields[2].SetValue(child, parentFields[1].GetValue(p));
+        return child;
+    }
+    
+    public static IndependentClass Convert2(Parent p)
+    {
+        var child = new IndependentClass();
+        var childType = child.GetType().GetTypeInfo();
+
+        var parentTypeInfo = typeof(Parent).GetTypeInfo();
+        var parentFields = parentTypeInfo.DeclaredFields;
+
+        foreach (var field in parentFields)
+        {
+            if (childType.DeclaredFields.Contains(field))
+                field.SetValue(child, field.GetValue(p));
+        }
 
         return child;
     }
@@ -100,7 +117,26 @@ public class Test
 public class Parent
 {
     public string name;
+    private int number;
     public bool enabled;
+
+    public SubClass1 publicSubClass1;
+    private SubClass2 privateSubClass2;
+
+    public Parent()
+    {
+        privateSubClass2 = new SubClass2();
+    }
+
+    private class SubClass2
+    {
+        private string subName;
+
+        public SubClass2()
+        {
+            subName = "Initialized";
+        }
+    }
 }
 
 public class Child : Parent
@@ -108,7 +144,17 @@ public class Child : Parent
     public string desc;
 }
 
-public class SubClass
+public class SubClass1
 {
     private string subName;
+
+    public SubClass1()
+    {
+        subName = "Initialized";
+    }
+}
+
+public class IndependentClass
+{
+    public string name;
 }
